@@ -1,0 +1,46 @@
+name: Publish Windows Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: 'Run ID from trifecta-agent-windows (leave blank to use latest successful on main)'
+        required: false
+        default: ''
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve run id
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        run: |
+          if [ -n "${{ github.event.inputs.source_run_id }}" ]; then
+            echo "RUN_ID=${{ github.event.inputs.source_run_id }}" >> $GITHUB_OUTPUT
+          else
+            RID=$(gh run list --repo Carmel-Labs-Inc/trifecta-agent-windows --workflow build-win.yml --branch main --json databaseId,conclusion --limit 20 | jq -r '.[] | select(.conclusion=="success") | .databaseId' | head -n 1)
+            if [ -z "$RID" ]; then echo "No successful run found"; exit 1; fi
+            echo "RUN_ID=$RID" >> $GITHUB_OUTPUT
+          fi
+      - name: Download artifact from windows repo
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        run: |
+          mkdir -p out
+          gh run download ${{ steps.resolve.outputs.RUN_ID }} --repo Carmel-Labs-Inc/trifecta-agent-windows -n TrifectaAgentClient-Windows -D out
+          ls -la out
+      - name: Publish releases
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        run: |
+          set -e
+          ASSET=$(find out -name 'TrifectaAgentClient-Windows.zip' | head -n1)
+          if [ -z "$ASSET" ]; then echo "Zip not found"; exit 1; fi
+          TAG="v-$(date +%Y%m%d)-win"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" -t "$TAG" -n "Automated Windows build"
+          gh release upload "$TAG" "$ASSET" --clobber
+          gh release view latest-windows >/dev/null 2>&1 || gh release create latest-windows -t latest-windows -n "Latest Windows build"
+          gh release upload latest-windows "$ASSET" --clobber
