@@ -48,7 +48,7 @@ trifecta-agent-downloads/
 
 ### For macOS
 
-1. Create and push annotated tag in [trifecta-native-agent-main](https://github.com/Carmel-Labs-Inc/carmel-trifecta-native-script-macos):
+1. Create and push annotated tag in [trifecta-native-agent-main](https://github.com/Carmel-Labs-Inc/trifecta-native-agent-main):
    ```bash
    ts=$(date +%s); newtag=macos-v1.0.0-notarized-$ts && \
    git tag -a "$newtag" -m "macOS: notarized build" && \
