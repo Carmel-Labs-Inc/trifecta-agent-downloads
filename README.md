@@ -104,7 +104,10 @@ TRIFECTA_UPDATE_MANIFEST_URL="https://raw.githubusercontent.com/Carmel-Labs-Inc/
 - `NOTARY_P8_BASE64` - Base64-encoded App Store Connect API Key (.p8)
 - `NOTARY_KEY_ID` - App Store Connect API Key ID
 - `NOTARY_ISSUER_ID` - App Store Connect Issuer ID
-- `CROSS_REPO_TOKEN` - Same fine-grained PAT as Windows (shared token)
+- `CROSS_REPO_TOKEN_MACOS` - Fine-grained PAT with:
+  - **Repository access:** All repositories in organization (or at minimum: trifecta-agent-downloads)
+  - **Contents:** Read and write
+  - **Metadata:** Read-only (automatic)
 
 ### In trifecta-agent-downloads:
 - **No secrets needed** - Build repos publish directly using their own `CROSS_REPO_TOKEN`
