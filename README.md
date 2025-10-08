@@ -10,9 +10,10 @@ trifecta-agent-downloads/
 │   ├── latest.json          # Windows manifest (legacy)
 │   └── latest-macos.json    # macOS manifest
 └── .github/workflows/
-    ├── publish-from-windows.yml
-    └── publish-from-macos.yml
+    └── publish-from-windows.yml  # Legacy - no longer actively used
 ```
+
+**Note:** Publishing is now done directly from build repos (trifecta-agent-windows and trifecta-native-agent-main) via tag-triggered workflows.
 
 ## Releases
 
@@ -30,31 +31,40 @@ trifecta-agent-downloads/
 
 ### For Windows
 
-1. Build runs automatically in [trifecta-agent-windows](https://github.com/Carmel-Labs-Inc/trifecta-agent-windows) repo
-2. Go to Actions → "Publish Windows Artifact"
-3. Run workflow (optionally specify a run ID)
-4. Workflow will:
-   - Download build artifact
-   - Create dated release tag
-   - Upload to `latest-windows`
-   - Update `manifest/latest.json`
+1. Create and push annotated tag in [trifecta-agent-windows](https://github.com/Carmel-Labs-Inc/trifecta-agent-windows):
+   ```bash
+   ts=$(date +%s); newtag=windows-v1.4.45-description-$ts && \
+   git tag -a "$newtag" -m "Windows: description" && \
+   git tag -a -f latest-windows -m "Update to $newtag" && \
+   git push origin "$newtag" && git push -f origin latest-windows
+   ```
+
+2. GitHub Actions workflow automatically:
+   - Builds and signs the Windows agent
+   - Creates release in `trifecta-agent-windows`
+   - **Directly publishes** to `trifecta-agent-downloads` using `CROSS_REPO_TOKEN`
+
+3. Net effect: Tag push → CI builds → assets uploaded to Releases in both repos
 
 ### For macOS
 
-1. Build runs in [trifecta-native-agent-main](https://github.com/Carmel-Labs-Inc/trifecta-native-agent-main) repo:
-   - Go to Actions → "Build and Sign macOS App"
-   - Run workflow (choose environment: notarized/public/dev)
-   - Wait for build to complete (includes signing + notarization)
+1. Create and push annotated tag in [trifecta-native-agent-main](https://github.com/Carmel-Labs-Inc/carmel-trifecta-native-script-macos):
+   ```bash
+   ts=$(date +%s); newtag=macos-v1.0.0-notarized-$ts && \
+   git tag -a "$newtag" -m "macOS: notarized build" && \
+   git tag -a -f latest-macos -m "Update to $newtag" && \
+   git push origin "$newtag" && git push -f origin latest-macos
+   ```
 
-2. Publish to downloads repo:
-   - Go to Actions → "Publish macOS Artifact"
-   - Run workflow (optionally specify a run ID)
-   - Workflow will:
-     - Download notarized build artifact
-     - Calculate SHA256
-     - Create dated release tag (`macos-v1.0.0-notarized-{timestamp}`)
-     - Upload to `latest-macos`
-     - Update `manifest/latest-macos.json`
+2. GitHub Actions workflow automatically:
+   - Builds the macOS agent with PyInstaller
+   - Signs with Developer ID
+   - Notarizes with Apple
+   - Computes SHA256 checksum
+   - Creates release in `trifecta-native-agent-main`
+   - **Directly publishes** to `trifecta-agent-downloads` using `CROSS_REPO_TOKEN`
+
+3. Net effect: Tag push → CI builds → assets uploaded to Releases in both repos
 
 ## Manifest Format
 
@@ -78,21 +88,26 @@ TRIFECTA_UPDATE_MANIFEST_URL="https://raw.githubusercontent.com/Carmel-Labs-Inc/
 
 ## Required Secrets
 
+### In trifecta-agent-windows (for Windows builds):
+- `WIN_CERT_PFX` - Base64-encoded code signing certificate
+- `WIN_CERT_PASS` - Certificate password
+- `CROSS_REPO_TOKEN` - Fine-grained PAT with:
+  - **Repository access:** All repositories in organization (or at minimum: trifecta-agent-downloads)
+  - **Contents:** Read and write
+  - **Metadata:** Read-only (automatic)
+
 ### In trifecta-native-agent-main (for macOS builds):
 - `P12_BASE64` - Base64-encoded P12 certificate
 - `P12_PASSWORD` - P12 certificate password
 - `KEYCHAIN_PASSWORD` - Temporary keychain password
-- `DEV_IDENTITY` - Developer ID certificate name or SHA-1 hash
+- `DEV_IDENTITY` - Developer ID certificate SHA-1 hash
 - `NOTARY_P8_BASE64` - Base64-encoded App Store Connect API Key (.p8)
 - `NOTARY_KEY_ID` - App Store Connect API Key ID
 - `NOTARY_ISSUER_ID` - App Store Connect Issuer ID
+- `CROSS_REPO_TOKEN` - Same fine-grained PAT as Windows (shared token)
 
-### In trifecta-agent-downloads (for publishing):
-- `CROSS_REPO_TOKEN` - GitHub token with permissions to:
-  - Read artifacts from source repos (trifecta-agent-windows AND trifecta-native-agent-main)
-  - Create releases in downloads repo
-  - Push to main branch
-  - **Note:** Same token works for both Windows and macOS workflows
+### In trifecta-agent-downloads:
+- **No secrets needed** - Build repos publish directly using their own `CROSS_REPO_TOKEN`
 
 ## Release Notes
 
